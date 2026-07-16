@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# UKI toggle – this script toggles UKI or traditional kernel loading with grub cus i didnt wanna do it manually. hopefully it works on most systems! oh and there is a bash-completions file
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+VERSION="2.1"
+
+# global yes flag (for automation)
+YES=0
+
+# show help message
+show_help() {
+    printf "%b" "${BLUE}uki-toggle${NC} – Unified Kernel Image toggle for Arch Linux (GRUB + mkinitcpio)\n\n"
+    printf "%b" "${YELLOW}USAGE${NC}\n"
+    printf "%b" "    uki-toggle [COMMAND] [OPTIONS]\n\n"
+    printf "%b" "${YELLOW}COMMANDS${NC}\n"
+    printf "%b" "    ${GREEN}enable${NC} (-e)   - Switch to UKI boot mode\n"
+    printf "%b" "    ${GREEN}disable${NC} (-d)  - Switch to traditional (kernel+initramfs) boot mode\n"
+    printf "%b" "    ${GREEN}toggle${NC} (-t)   - Toggle between UKI and traditional modes\n"
+    printf "%b" "    ${GREEN}status${NC} (-s)   - Show current boot mode and system information\n"
+    printf "%b" "    ${GREEN}reload${NC} (-r)   - Rebuild initramfs/UKIs and regenerate GRUB (no mode change)\n"
+    printf "%b" "    ${GREEN}help${NC} (-h)     - Show this help message\n"
+    printf "%b" "    ${GREEN}version${NC} (-v)  - Show version\n\n"
+    printf "%b" "${YELLOW}OPTIONS${NC}\n"
+    printf "%b" "    -y, --yes      Automatically answer 'yes' to any prompt (for automation)\n\n"
+    printf "%b" "${YELLOW}EXAMPLES${NC}\n"
+    printf "%b" "    ${BLUE}uki-toggle enable${NC}         # Activate UKI mode\n"
+    printf "%b" "    ${BLUE}uki-toggle -e${NC}             # Short form\n"
+    printf "%b" "    ${BLUE}uki-toggle -y enable${NC}      # Enable UKI, no prompts\n"
+    printf "%b" "    ${BLUE}uki-toggle disable${NC}        # Switch back to traditional\n"
+    printf "%b" "    ${BLUE}uki-toggle toggle${NC}         # Flip between modes\n"
+    printf "%b" "    ${BLUE}uki-toggle reload${NC}         # Rebuild after kernel updates\n"
+    printf "%b" "    ${BLUE}uki-toggle status${NC}         # Check current mode\n"
+    printf "%b" "    ${BLUE}uki-toggle -h${NC}             # Show this help\n\n"
+    printf "%b" "${YELLOW}NOTES${NC}\n"
+    printf "%b" "    - This script is designed for GRUB + mkinitcpio systems.\n"
+    printf "%b" "    - It automatically detects your bootloader and initramfs generator.\n"
+    printf "%b" "    - For systemd-boot users, UKI toggling is manual (add/remove .efi files).\n"
+    printf "%b" "    - All operations are reversible – you can always switch back.\n"
+    printf "%b" "    - The script detects all kernels installed (linux, linux-zen, linux-lts, etc.)\n\n"
+    printf "%b" "${YELLOW}FILES${NC}\n"
+    printf "%b" "    Presets:  /etc/mkinitcpio.d/linux*.preset\n"
+    printf "%b" "    GRUB:     /etc/grub.d/10_linux, /etc/grub.d/15_uki\n"
+    printf "%b" "    UKI dir:  /boot/EFI/Linux (or auto-detected)\n"
+}
+
+# show version
+show_version() {
+    echo "uki-toggle version $VERSION"
+    echo "Written for Arch Linux with GRUB and mkinitcpio."
+}
+
+# Check root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}Please run as root (use sudo).${NC}"
+    exit 1
+fi
+
+# Parse global options (like -y)
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -y|--yes)
+            YES=1
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+# detect bootloader – dynamically find grub.cfg
+GRUB_CONFIG=""
+if [ -f /boot/grub/grub.cfg ]; then
+    GRUB_CONFIG="/boot/grub/grub.cfg"
+elif [ -f /efi/grub/grub.cfg ]; then
+    GRUB_CONFIG="/efi/grub/grub.cfg"
+elif [ -f /boot/efi/grub/grub.cfg ]; then
+    GRUB_CONFIG="/boot/efi/grub/grub.cfg"
+fi
+
+detect_bootloader() {
+    if [ -n "$GRUB_CONFIG" ]; then
+        echo "GRUB"
+    elif [ -f "/boot/loader/loader.conf" ]; then
+        echo "systemd-boot"
+    else
+        echo "unknown"
+    fi
+}
+
+# detect initramfs generator
+detect_initramfs() {
+    if [ -d "/etc/mkinitcpio.d" ] && command -v mkinitcpio >/dev/null; then
+        echo "mkinitcpio"
+    elif [ -d "/etc/dracut.conf.d" ] && command -v dracut >/dev/null; then
+        echo "dracut"
+    else
+        echo "unknown"
+    fi
+}
+
+BOOTLOADER=$(detect_bootloader)
+INITRAMFS=$(detect_initramfs)
+
+# Only GRUB + mkinitcpio are fully supported
+if [ "$BOOTLOADER" != "GRUB" ] || [ "$INITRAMFS" != "mkinitcpio" ]; then
+    echo -e "${YELLOW}Warning: This script is designed for GRUB + mkinitcpio.${NC}"
+    echo "Detected: bootloader=$BOOTLOADER, initramfs=$INITRAMFS"
+    if [ "$BOOTLOADER" = "systemd-boot" ]; then
+        echo "For systemd-boot, UKI toggling is simpler: just add/remove .efi files from /boot/EFI/Linux/"
+        echo "and update loader entries manually."
+    fi
+    if [ $YES -eq 0 ]; then
+        echo -e "${YELLOW}Proceed anyway? [y/N]${NC}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        echo -e "${YELLOW}Proceeding (auto-yes)...${NC}"
+    fi
+fi
+
+# determine UKI directory (common paths)
+UKI_DIRS=("/boot/EFI/Linux" "/efi/EFI/Linux" "/boot/efi/EFI/Linux")
+UKI_DIR=""
+for dir in "${UKI_DIRS[@]}"; do
+    if [ -d "$dir" ]; then
+        UKI_DIR="$dir"
+        break
+    fi
+done
+if [ -z "$UKI_DIR" ]; then
+    echo -e "${YELLOW}No UKI directory found, using /boot/EFI/Linux (will create if needed).${NC}"
+    UKI_DIR="/boot/EFI/Linux"
+fi
+
+# function to enable UKI mode
+enable_uki() {
+    echo -e "${YELLOW}Enabling UKI mode...${NC}"
+
+    # uncomment UKI lines in presets (robust pattern)
+    for preset in /etc/mkinitcpio.d/linux*.preset; do
+        [ -f "$preset" ] || continue
+        sed -i 's/^#\s*default_uki/default_uki/' "$preset"
+        sed -i 's/^#\s*default_options/default_options/' "$preset"
+    done
+
+    # enable GRUB UKI detection
+    if [ -f /etc/grub.d/15_uki ]; then
+        chmod +x /etc/grub.d/15_uki
+    else
+        echo -e "${RED}No /etc/grub.d/15_uki found – please install or create it.${NC}"
+        exit 1
+    fi
+    chmod -x /etc/grub.d/10_linux 2>/dev/null || true
+
+    # regenerate
+    rebuild
+    echo -e "${GREEN}UKI mode enabled. GRUB will now boot UKI files from $UKI_DIR${NC}"
+}
+
+# function to disable UKI mode (aka traditional mode)
+disable_uki() {
+    echo -e "${YELLOW}Disabling UKI mode (traditional boot)...${NC}"
+
+    # comment out UKI lines in presets
+    for preset in /etc/mkinitcpio.d/linux*.preset; do
+        [ -f "$preset" ] || continue
+        sed -i 's/^default_uki/#default_uki/' "$preset"
+        sed -i 's/^default_options/#default_options/' "$preset"
+    done
+
+    # disable GRUB UKI detection, enable standard kernel detection
+    chmod +x /etc/grub.d/10_linux 2>/dev/null || true
+    chmod -x /etc/grub.d/15_uki 2>/dev/null || true
+
+    # rebuild and regenerate
+    rebuild
+    echo -e "${GREEN}Traditional boot mode enabled. GRUB will now boot kernel+initramfs.${NC}"
+}
+
+# Rebuild initramfs/UKIs and regenerate GRUB
+rebuild() {
+    echo -e "${YELLOW}Rebuilding initramfs/UKIs and regenerating GRUB...${NC}"
+    mkinitcpio -P
+    # Use detected GRUB config path, fallback to /boot/grub/grub.cfg
+    if [ -n "$GRUB_CONFIG" ]; then
+        grub-mkconfig -o "$GRUB_CONFIG"
+    else
+        echo -e "${YELLOW}No GRUB config found, using default /boot/grub/grub.cfg${NC}"
+        grub-mkconfig -o /boot/grub/grub.cfg
+    fi
+    echo -e "${GREEN}Done.${NC}"
+}
+
+# show status
+status() {
+    echo -e "${YELLOW}Current status:${NC}"
+    if [ -x /etc/grub.d/15_uki ] && [ ! -x /etc/grub.d/10_linux ]; then
+        echo -e "  ${GREEN}UKI mode is ACTIVE${NC}"
+    elif [ ! -x /etc/grub.d/15_uki ] && [ -x /etc/grub.d/10_linux ]; then
+        echo -e "  ${GREEN}Traditional mode is ACTIVE${NC}"
+    else
+        echo -e "  ${RED}Mixed or unknown state${NC}"
+    fi
+    echo "Initramfs generator: $INITRAMFS"
+    echo "Bootloader: $BOOTLOADER"
+    echo "UKI directory: $UKI_DIR"
+    if [ -n "$GRUB_CONFIG" ]; then
+        echo "GRUB config: $GRUB_CONFIG"
+    fi
+}
+
+# main argument parsing – must have a command now
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
+
+# store command
+CMD="$1"
+shift
+
+# check for extra arguments
+if [ $# -ne 0 ]; then
+    echo -e "${RED}Error: Unexpected trailing arguments: $*${NC}"
+    echo "Try 'uki-toggle --help' for usage."
+    exit 1
+fi
+
+case "$CMD" in
+    enable|-e|--enable)
+        enable_uki
+        ;;
+    disable|-d|--disable)
+        disable_uki
+        ;;
+    toggle|-t|--toggle)
+        if [ -x /etc/grub.d/15_uki ] && [ ! -x /etc/grub.d/10_linux ]; then
+            disable_uki
+        else
+            enable_uki
+        fi
+        ;;
+    status|-s|--status)
+        status
+        ;;
+    reload|-r|--reload)
+        rebuild
+        ;;
+    help|-h|--help)
+        show_help
+        ;;
+    version|-v|--version)
+        show_version
+        ;;
+    *)
+        echo -e "${RED}Unknown command: $CMD${NC}"
+        echo "Try 'uki-toggle --help' for usage."
+        exit 1
+        ;;
+esac
