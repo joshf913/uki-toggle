@@ -40,7 +40,7 @@ This script lets you switch betweeeeeeeeeeeeeeen those two modes quickly, withou
 
 # Usage
 ```
-uki-toggle [COMMAND] [OPTIONS]
+uki-toggle [OPTIONS] [COMMAND]
 ```
 ### Commands
 
