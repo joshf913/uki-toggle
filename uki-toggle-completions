@@ -1,0 +1,8 @@
+_uki_toggle() {
+    local cur
+    _init_completion || return
+    if [[ $cword -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "enable disable toggle status reload help version" -- "$cur") )
+    fi
+}
+complete -F _uki_toggle uki-toggle
