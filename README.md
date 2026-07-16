@@ -124,7 +124,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ## Versioning
 
-Major.Minor-fix
+{Major}.{Minor}-{Fix}
 
 ## Contributing
 i doubt anyoen will contribute but if u want to go ahead ill look at it
