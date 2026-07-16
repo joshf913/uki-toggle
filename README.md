@@ -17,7 +17,7 @@ This script lets you switch betweeeeeeeeeeeeeeen those two modes quickly, withou
 - Toggle UKI / Traditional mode with a single command.
 - Automatically detects GRUB config path ('/boot/grub/grub.cfg', etc)
 - Automatically detects UKI directories. ('/boot/EFI/Linux', '/efi/EFI/Linux', etc)
-- Works with all installed kernels (I'm pretty sure as long as they are prefaced by 'linux')
+- Works with all installed kernels (as long as they are prefaced by 'linux')
 - Automation with -y / --yes flags.
 - Included bash completion file (subcommands only, no flags.)
 - It is reversible and does the least amount of changes it can to avoid issues.
