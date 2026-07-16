@@ -7,44 +7,45 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m'
+# used to disable text coloring
+COL_RST='\033[0m'
 
-VERSION="2.2-1"
+VERSION="2.2-2"
 
 # global yes flag (for automation)
-YES=0
+NO_CONFIRM=0
 
 # show help message
 show_help() {
-    printf "%b" "${BLUE}uki-toggle${NC} – Unified Kernel Image toggle for Arch Linux (GRUB + mkinitcpio)\n\n"
-    printf "%b" "${YELLOW}USAGE${NC}\n"
+    printf "%b" "${BLUE}uki-toggle${COL_RST} – Unified Kernel Image toggle for Arch Linux (GRUB + mkinitcpio)\n\n"
+    printf "%b" "${YELLOW}USAGE${COL_RST}\n"
     printf "%b" "    uki-toggle [OPTIONS] [COMMAND]\n\n"
-    printf "%b" "${YELLOW}COMMANDS${NC}\n"
-    printf "%b" "    ${GREEN}enable${NC} (-e)   - Switch to UKI boot mode\n"
-    printf "%b" "    ${GREEN}disable${NC} (-d)  - Switch to traditional (kernel+initramfs) boot mode\n"
-    printf "%b" "    ${GREEN}toggle${NC} (-t)   - Toggle between UKI and traditional modes\n"
-    printf "%b" "    ${GREEN}status${NC} (-s)   - Show current boot mode and system information\n"
-    printf "%b" "    ${GREEN}reload${NC} (-r)   - Rebuild initramfs/UKIs and regenerate GRUB\n"
-    printf "%b" "    ${GREEN}help${NC} (-h)     - Show this help message\n"
-    printf "%b" "    ${GREEN}version${NC} (-v)  - Show version\n\n"
-    printf "%b" "${YELLOW}OPTIONS${NC}\n"
-    printf "%b" "    -y, --yes      Automatically answer 'yes' to any prompt (for automation)\n"
-    printf "%b" "${YELLOW}EXAMPLES${NC}\n"
-    printf "%b" "    ${BLUE}uki-toggle enable (-e)${NC}         # Activate UKI mode\n"
-    printf "%b" "    ${BLUE}uki-toggle disable (-d)${NC}        # Switch back to traditional\n"
-    printf "%b" "    ${BLUE}uki-toggle toggle (-t)${NC}         # Flip between modes\n"
-    printf "%b" "    ${BLUE}uki-toggle reload (-r)${NC}         # Rebuild after kernel updates\n"
-    printf "%b" "    ${BLUE}uki-toggle status (-s)${NC}         # Check current mode\n"
-    printf "%b" "    ${BLUE}uki-toggle help (-h)${NC}           # Show this help\n"
-    printf "%b" "    ${BLUE}uki-toggle -y enable${NC}           # Enable UKI, no prompts\n"
-    printf "%b" "    ${BLUE}uki-toggle enable -y${NC}           # Also works\n\n"
-    printf "%b" "${YELLOW}NOTES${NC}\n"
+    printf "%b" "${YELLOW}COMMANDS${COL_RST}\n"
+    printf "%b" "    ${GREEN}enable${COL_RST} (-e)   - Switch to UKI boot mode\n"
+    printf "%b" "    ${GREEN}disable${COL_RST} (-d)  - Switch to traditional (kernel+initramfs) boot mode\n"
+    printf "%b" "    ${GREEN}toggle${COL_RST} (-t)   - Toggle between UKI and traditional modes\n"
+    printf "%b" "    ${GREEN}status${COL_RST} (-s)   - Show current boot mode and system information\n"
+    printf "%b" "    ${GREEN}reload${COL_RST} (-r)   - Rebuild initramfs/UKIs and regenerate GRUB\n"
+    printf "%b" "    ${GREEN}help${COL_RST} (-h)     - Show this help message\n"
+    printf "%b" "    ${GREEN}version${COL_RST} (-v)  - Show version\n\n"
+    printf "%b" "${YELLOW}OPTIONS${COL_RST}\n"
+    printf "%b" "    -nc, --noconfirm      Automatically answer 'yes' to any prompt (for automation)\n"
+    printf "%b" "${YELLOW}EXAMPLES${COL_RST}\n"
+    printf "%b" "    ${BLUE}uki-toggle enable (-e)${COL_RST}         # Activate UKI mode\n"
+    printf "%b" "    ${BLUE}uki-toggle disable (-d)${COL_RST}        # Switch back to traditional\n"
+    printf "%b" "    ${BLUE}uki-toggle toggle (-t)${COL_RST}         # Flip between modes\n"
+    printf "%b" "    ${BLUE}uki-toggle reload (-r)${COL_RST}         # Rebuild after kernel updates\n"
+    printf "%b" "    ${BLUE}uki-toggle status (-s)${COL_RST}         # Check current mode\n"
+    printf "%b" "    ${BLUE}uki-toggle help (-h)${COL_RST}           # Show this help\n"
+    printf "%b" "    ${BLUE}uki-toggle -nc enable${COL_RST}           # Enable UKI, no prompts\n"
+    printf "%b" "    ${BLUE}uki-toggle enable -nc${COL_RST}           # Also works\n\n"
+    printf "%b" "${YELLOW}NOTES${COL_RST}\n"
     printf "%b" "    - This script is designed for GRUB + mkinitcpio systems.\n"
     printf "%b" "    - It automatically detects your bootloader and initramfs generator.\n"
     printf "%b" "    - For systemd-boot users, UKI toggling is manual (add/remove .efi files).\n"
     printf "%b" "    - All operations are reversible – you can always switch back.\n"
     printf "%b" "    - The script detects all kernels installed (linux, linux-zen, linux-lts, etc.)\n\n"
-    printf "%b" "${YELLOW}FILES${NC}\n"
+    printf "%b" "${YELLOW}FILES${COL_RST}\n"
     printf "%b" "    Presets:  /etc/mkinitcpio.d/linux*.preset\n"
     printf "%b" "    GRUB:     /etc/grub.d/10_linux, /etc/grub.d/15_uki\n"
     printf "%b" "    UKI dir:  /boot/EFI/Linux (or auto-detected)\n"
@@ -58,17 +59,17 @@ show_version() {
 
 # Check root
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Please run as root (use sudo).${NC}"
+    echo -e "${RED}Please run as root (use sudo).${COL_RST}"
     exit 1
 fi
 
-# parse arguments: collect -y/--yes and find command
+# parse arguments: collect -nc/--noconfirm and find command
 cmd=""
 extra_args=()
 for arg in "$@"; do
     case "$arg" in
-        -y|--yes)
-            YES=1
+        -nc|--noconfirm)
+            NO_CONFIRM=1
             ;;
         -*)
             # we don't support other options, but we'll collect them to error later
@@ -94,7 +95,7 @@ fi
 
 # if there are extra arguments (flags or extra words), error out
 if [ ${#extra_args[@]} -gt 0 ]; then
-    echo -e "${RED}Error: Unexpected trailing arguments: ${extra_args[*]}${NC}"
+    echo -e "${RED}Error: Unexpected trailing arguments: ${extra_args[*]}${COL_RST}"
     echo "Try 'uki-toggle --help' for usage."
     exit 1
 fi
@@ -135,20 +136,20 @@ INITRAMFS=$(detect_initramfs)
 
 # Only GRUB + mkinitcpio are fully supported
 if [ "$BOOTLOADER" != "GRUB" ] || [ "$INITRAMFS" != "mkinitcpio" ]; then
-    echo -e "${YELLOW}Warning: This script is designed for GRUB + mkinitcpio.${NC}"
+    echo -e "${YELLOW}Warning: This script is designed for GRUB + mkinitcpio.${COL_RST}"
     echo "Detected: bootloader=$BOOTLOADER, initramfs=$INITRAMFS"
     if [ "$BOOTLOADER" = "systemd-boot" ]; then
         echo "For systemd-boot, UKI toggling is simpler: just add/remove .efi files from /boot/EFI/Linux/"
         echo "and update loader entries manually."
     fi
-    if [ $YES -eq 0 ]; then
-        echo -e "${YELLOW}Proceed anyway? [y/N]${NC}"
+    if [ $NO_CONFIRM -eq 0 ]; then
+        echo -e "${YELLOW}Proceed anyway? [y/N]${COL_RST}"
         read -r response
         if [[ ! "$response" =~ ^[Yy]$ ]]; then
             exit 1
         fi
     else
-        echo -e "${YELLOW}Proceeding (auto-yes)...${NC}"
+        echo -e "${YELLOW}Proceeding (no-confirm)...${COL_RST}"
     fi
 fi
 
@@ -162,7 +163,7 @@ for dir in "${UKI_DIRS[@]}"; do
     fi
 done
 if [ -z "$UKI_DIR" ]; then
-    echo -e "${YELLOW}No UKI directory found, using /boot/EFI/Linux (will create if needed).${NC}"
+    echo -e "${YELLOW}No UKI directory found, using /boot/EFI/Linux (will create if needed).${COL_RST}"
     UKI_DIR="/boot/EFI/Linux"
 fi
 
@@ -171,7 +172,7 @@ edit_presets() {
     local action="$1"
     local preset_files=(/etc/mkinitcpio.d/linux*.preset)
     if [ ${#preset_files[@]} -eq 0 ] || [ ! -f "${preset_files[0]}" ]; then
-        echo -e "${YELLOW}No preset files found matching /etc/mkinitcpio.d/linux*.preset${NC}"
+        echo -e "${YELLOW}No preset files found matching /etc/mkinitcpio.d/linux*.preset${COL_RST}"
         return 1
     fi
     for preset in "${preset_files[@]}"; do
@@ -199,16 +200,16 @@ restore_presets() {
 
 # function to enable UKI mode
 enable_uki() {
-    echo -e "${YELLOW}Enabling UKI mode...${NC}"
+    echo -e "${YELLOW}Enabling UKI mode...${COL_RST}"
 
     if ! edit_presets enable; then
-        echo -e "${RED}Failed to edit presets. Aborting.${NC}"
+        echo -e "${RED}Failed to edit presets. Aborting.${COL_RST}"
         exit 1
     fi
 
-    echo -e "${YELLOW}Building UKIs...${NC}"
+    echo -e "${YELLOW}Building UKIs...${COL_RST}"
     if ! mkinitcpio -P; then
-        echo -e "${RED}mkinitcpio failed. Restoring preset backups.${NC}"
+        echo -e "${RED}mkinitcpio failed. Restoring preset backups.${COL_RST}"
         restore_presets
         exit 1
     fi
@@ -216,28 +217,28 @@ enable_uki() {
     if [ -f /etc/grub.d/15_uki ]; then
         chmod +x /etc/grub.d/15_uki
     else
-        echo -e "${RED}No /etc/grub.d/15_uki found. Restoring presets.${NC}"
+        echo -e "${RED}No /etc/grub.d/15_uki found. Restoring presets.${COL_RST}"
         restore_presets
         exit 1
     fi
     chmod -x /etc/grub.d/10_linux 2>/dev/null || true
 
     rebuild_grub
-    echo -e "${GREEN}UKI mode enabled. GRUB will now boot UKI files from $UKI_DIR${NC}"
+    echo -e "${GREEN}UKI mode enabled. GRUB will now boot UKI files from $UKI_DIR${COL_RST}"
 }
 
 # function to disable UKI mode (aka traditional mode)
 disable_uki() {
-    echo -e "${YELLOW}Disabling UKI mode (traditional boot)...${NC}"
+    echo -e "${YELLOW}Disabling UKI mode (traditional boot)...${COL_RST}"
 
     if ! edit_presets disable; then
-        echo -e "${RED}Failed to edit presets. Aborting.${NC}"
+        echo -e "${RED}Failed to edit presets. Aborting.${COL_RST}"
         exit 1
     fi
 
-    echo -e "${YELLOW}Rebuilding initramfs...${NC}"
+    echo -e "${YELLOW}Rebuilding initramfs...${COL_RST}"
     if ! mkinitcpio -P; then
-        echo -e "${RED}mkinitcpio failed. Restoring preset backups.${NC}"
+        echo -e "${RED}mkinitcpio failed. Restoring preset backups.${COL_RST}"
         restore_presets
         exit 1
     fi
@@ -246,41 +247,41 @@ disable_uki() {
     chmod -x /etc/grub.d/15_uki 2>/dev/null || true
 
     rebuild_grub
-    echo -e "${GREEN}Traditional boot mode enabled. GRUB will now boot kernel+initramfs.${NC}"
+    echo -e "${GREEN}Traditional boot mode enabled. GRUB will now boot kernel+initramfs.${COL_RST}"
 }
 
 # Rebuild GRUB config
 rebuild_grub() {
     if ! command -v grub-mkconfig >/dev/null; then
-        echo -e "${RED}grub-mkconfig not found in PATH. Please install GRUB.${NC}"
+        echo -e "${RED}grub-mkconfig not found in PATH. Please install GRUB.${COL_RST}"
         exit 1
     fi
-    echo -e "${YELLOW}Regenerating GRUB config...${NC}"
+    echo -e "${YELLOW}Regenerating GRUB config...${COL_RST}"
     if [ -n "$GRUB_CONFIG" ]; then
         grub-mkconfig -o "$GRUB_CONFIG"
     else
-        echo -e "${YELLOW}No GRUB config found, using default /boot/grub/grub.cfg${NC}"
+        echo -e "${YELLOW}No GRUB config found, using default /boot/grub/grub.cfg${COL_RST}"
         grub-mkconfig -o /boot/grub/grub.cfg
     fi
 }
 
 # Rebuild everything (reload command)
 rebuild() {
-    echo -e "${YELLOW}Rebuilding initramfs/UKIs and regenerating GRUB...${NC}"
+    echo -e "${YELLOW}Rebuilding initramfs/UKIs and regenerating GRUB...${COL_RST}"
     mkinitcpio -P
     rebuild_grub
-    echo -e "${GREEN}Done.${NC}"
+    echo -e "${GREEN}Done.${COL_RST}"
 }
 
 # show status
 status() {
-    echo -e "${YELLOW}Current status:${NC}"
+    echo -e "${YELLOW}Current status:${COL_RST}"
     if [ -x /etc/grub.d/15_uki ] && [ ! -x /etc/grub.d/10_linux ]; then
-        echo -e "  ${GREEN}UKI mode is ACTIVE${NC}"
+        echo -e "  ${GREEN}UKI mode is ACTIVE${COL_RST}"
     elif [ ! -x /etc/grub.d/15_uki ] && [ -x /etc/grub.d/10_linux ]; then
-        echo -e "  ${GREEN}Traditional mode is ACTIVE${NC}"
+        echo -e "  ${GREEN}Traditional mode is ACTIVE${COL_RST}"
     else
-        echo -e "  ${RED}Mixed or unknown state${NC}"
+        echo -e "  ${RED}Mixed or unknown state${COL_RST}"
     fi
     echo "Initramfs generator: $INITRAMFS"
     echo "Bootloader: $BOOTLOADER"
@@ -318,7 +319,7 @@ case "$cmd" in
         show_version
         ;;
     *)
-        echo -e "${RED}Unknown command: $cmd${NC}"
+        echo -e "${RED}Unknown command: $cmd${COL_RST}"
         echo "Try 'uki-toggle --help' for usage."
         exit 1
         ;;
