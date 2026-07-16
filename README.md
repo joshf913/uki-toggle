@@ -100,7 +100,7 @@ uki-toggle status
    - Makes `10_linux` executable, `15_uki` non-executable
    - Rebuilds initramfs only, regenerates GRUB
 
-All changes are fully reversible and you can switch back anytime.
+All changes are fully reversible and you can switch back any time.
 
 ---
 
