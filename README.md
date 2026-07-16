@@ -1,4 +1,4 @@
-# uki-toggle - VERSION 2.2-1
+# uki-toggle - VERSION 2.2-2
 uki-toggle is a bash script i maaaaade for Arch that toggles between UKIs (Unified Kernel Images) and **traditional kernel+initramfs** booting with GRUB.
 
 It automatically detects your bootloader, initramfs generator, and your UKI directory. Hopefully no manual config needed.
@@ -18,7 +18,7 @@ This script lets you switch betweeeeeeeeeeeeeeen those two modes quickly, withou
 - Automatically detects GRUB config path ('/boot/grub/grub.cfg', etc)
 - Automatically detects UKI directories. ('/boot/EFI/Linux', '/efi/EFI/Linux', etc)
 - Works with all installed kernels (as long as they are prefaced by 'linux')
-- Automation with -y / --yes flags.
+- Automation with -nc / --noconfirm flags.
 - Included bash completion file (subcommands only, no flags.)
 - It is reversible and does the least amount of changes it can to avoid issues.
 - No hardcoding, cause I like automation.
@@ -58,7 +58,7 @@ uki-toggle [OPTIONS] [COMMAND]
 
 | Option          | Description |
 | :-------------- | :---------- |
-| `-y`, `--yes`   | Automatically answer 'yes' to any prompt (for automation) |
+| `-nc`, `--noconfirm`   | Automatically answer 'yes' to any prompt (for automation) |
 
 ### Examples
 
